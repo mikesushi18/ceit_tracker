@@ -1,9 +1,17 @@
 <?php
 // includes/config.php
+<<<<<<< HEAD
 $__env = static function (string $name, string $default = ''): string {
     $value = getenv($name);
     return $value === false ? $default : $value;
 };
+=======
+define('DB_HOST', 'localhost');
+define('DB_PORT', 3306);   // <-- your XAMPP MySQL port. Change this if it's different (check phpMyAdmin / my.ini).
+define('DB_USER', 'root');
+define('DB_PASS', '');
+define('DB_NAME', 'ceit_tracker');
+>>>>>>> d23090be378f126c4ebd2a4f64cd9cc99bb61fb4
 
 define('DB_HOST', $__env('DB_HOST', 'localhost'));
 define('DB_PORT', (int) $__env('DB_PORT', '3307'));
@@ -23,6 +31,7 @@ define('S3_SECRET_KEY', $__env('S3_SECRET_KEY'));
 // Auto-detect BASE_URL from the actual host/port the app is being served on,
 // so it works whether you access it via localhost, 127.0.0.1, a different
 // port (e.g. :8080), etc. No need to hardcode it.
+<<<<<<< HEAD
 $__baseUrl = rtrim($__env('APP_BASE_URL'), '/');
 if ($__baseUrl === '') {
     $__scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
@@ -33,6 +42,10 @@ if ($__baseUrl === '') {
         $__host = $__vercelHost;
     }
 }
+=======
+$__scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+$__host   = $_SERVER['HTTP_HOST'] ?? 'localhost'; // includes port if non-standard, e.g. localhost:8080
+>>>>>>> d23090be378f126c4ebd2a4f64cd9cc99bb61fb4
 
 // includes/config.php always lives at <project_root>/includes/config.php,
 // so the project root's URL path is __DIR__ one level up, translated from
@@ -63,11 +76,19 @@ define('ALLOWED_EMAIL_DOMAINS', ['cvsu.edu.ph']);
 // ── Gmail SMTP (for sending OTP codes) ──
 // Use an App Password, NOT your real Gmail password:
 // https://myaccount.google.com/apppasswords (requires 2-Step Verification ON)
+<<<<<<< HEAD
 define('SMTP_HOST', $__env('SMTP_HOST', 'smtp.gmail.com'));
 define('SMTP_PORT', (int) $__env('SMTP_PORT', '587'));
 define('SMTP_USER', $__env('SMTP_USER'));
 define('SMTP_APP_PASSWORD', $__env('SMTP_APP_PASSWORD'));
 define('SMTP_FROM_NAME', $__env('SMTP_FROM_NAME', 'ColTrace - CEIT File Tracking System'));
+=======
+define('SMTP_HOST', 'smtp.gmail.com');
+define('SMTP_PORT', 587);
+define('SMTP_USER', 'mikecsv18@gmail.com');
+define('SMTP_APP_PASSWORD', 'mnyt yqvh ekuo rikb');
+define('SMTP_FROM_NAME', 'CollTrace - CEIT File Tracking System');
+>>>>>>> d23090be378f126c4ebd2a4f64cd9cc99bb61fb4
 
 // OTP settings
 define('OTP_LENGTH', 6);
@@ -96,31 +117,6 @@ if ($conn->connect_error) {
 }
 
 $conn->set_charset('utf8mb4');
-
-// Repair databases where activity_log.id was imported without AUTO_INCREMENT.
-$activity_log_id = $conn->query("SHOW COLUMNS FROM activity_log LIKE 'id'");
-if ($activity_log_id->num_rows !== 1) {
-    throw new RuntimeException('The activity_log table must contain an id column.');
-}
-$activity_log_id_column = $activity_log_id->fetch_assoc();
-$activity_log_id->free();
-if (stripos($activity_log_id_column['Extra'], 'auto_increment') === false) {
-    $zero_activity_id = $conn->query("SELECT 1 FROM activity_log WHERE id = 0 LIMIT 1");
-    if ($zero_activity_id->num_rows > 0) {
-        $zero_activity_id->free();
-        $next_activity_id_result = $conn->query("SELECT COALESCE(MAX(id), 0) + 1 AS next_id FROM activity_log");
-        $next_activity_id = $next_activity_id_result->fetch_assoc()['next_id'];
-        $next_activity_id_result->free();
-
-        $stmt = $conn->prepare("UPDATE activity_log SET id = ? WHERE id = 0");
-        $stmt->bind_param('i', $next_activity_id);
-        $stmt->execute();
-        $stmt->close();
-    } else {
-        $zero_activity_id->free();
-    }
-    $conn->query("ALTER TABLE activity_log MODIFY id INT(11) NOT NULL AUTO_INCREMENT");
-}
 
 // Keep the subject catalog compatible with installations created before
 // faculty ownership and department scoping were added.
