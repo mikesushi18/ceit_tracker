@@ -464,8 +464,8 @@ foreach ($faculty as $faculty_member) {
                             ?>
                             <div style="background:#fafbfc;border:1.5px solid <?= $fac_files > 0 ? '#bbf7d0' : 'var(--border)' ?>;border-radius:9px;padding:10px 13px;display:flex;align-items:center;gap:9px;">
                                 <?php $fac_avatar_path = __DIR__ . '/../uploads/avatars/' . ($fac['profile_photo'] ?? ''); ?>
-                                <?php if (!empty($fac['profile_photo']) && is_file($fac_avatar_path)): ?>
-                                    <img src="<?= BASE_URL . '/uploads/avatars/' . rawurlencode($fac['profile_photo']) . '?v=' . filemtime($fac_avatar_path) ?>" alt="" style="width:32px;height:32px;border-radius:50%;object-fit:cover;flex-shrink:0;">
+                                <?php if (!empty($fac['profile_photo']) && storageExists($fac_avatar_path)): ?>
+                                    <img src="<?= BASE_URL . '/uploads/avatars/' . rawurlencode($fac['profile_photo']) . '?v=' . (storageModified($fac_avatar_path) ?: 0) ?>" alt="" style="width:32px;height:32px;border-radius:50%;object-fit:cover;flex-shrink:0;">
                                 <?php else: ?>
                                     <div style="width:32px;height:32px;border-radius:50%;background:<?= $fac_files > 0 ? 'linear-gradient(135deg,#22c55e,#16a34a)' : 'linear-gradient(135deg,#9ca3af,#6b7280)' ?>;color:#fff;font-size:13px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><?= mb_strtoupper(mb_substr($fac['full_name'],0,1)) ?></div>
                                 <?php endif; ?>
@@ -537,10 +537,10 @@ foreach ($faculty as $faculty_member) {
                       <div class="faculty-status-head">
                         <?php
                             $f_avatar_path = __DIR__ . '/../uploads/avatars/' . ($f['profile_photo'] ?? '');
-                            $f_has_avatar  = !empty($f['profile_photo']) && is_file($f_avatar_path);
+                            $f_has_avatar  = !empty($f['profile_photo']) && storageExists($f_avatar_path);
                         ?>
                         <?php if ($f_has_avatar): ?>
-                        <img class="faculty-avatar" src="<?= BASE_URL . '/uploads/avatars/' . rawurlencode($f['profile_photo']) . '?v=' . filemtime($f_avatar_path) ?>" alt="" style="object-fit:cover;">
+                        <img class="faculty-avatar" src="<?= BASE_URL . '/uploads/avatars/' . rawurlencode($f['profile_photo']) . '?v=' . (storageModified($f_avatar_path) ?: 0) ?>" alt="" style="object-fit:cover;">
                         <?php else: ?>
                         <div class="faculty-avatar"><?= mb_strtoupper(mb_substr($f['full_name'], 0, 1)) ?></div>
                         <?php endif; ?>

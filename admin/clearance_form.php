@@ -19,7 +19,7 @@ if (isset($_GET['view'])) {
     }
 
     $file_path = $clearance_dir . basename($form['file_name']);
-    if (!is_file($file_path)) {
+    if (!storageExists($file_path)) {
         http_response_code(404);
         exit('Form file not found.');
     }
@@ -30,19 +30,21 @@ if (isset($_GET['view'])) {
         'doc'  => 'application/msword',
         'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     ];
-    $mime = $mime_types[$extension] ?? (mime_content_type($file_path) ?: 'application/octet-stream');
+    $mime = $mime_types[$extension] ?? 'application/octet-stream';
     header('Content-Type: ' . $mime);
     $force_download = ($_GET['download'] ?? '') === '1'
         || !in_array($extension, ['pdf', 'docx'], true)
         || ($extension === 'docx' && ($_GET['raw'] ?? '') !== '1');
     header('Content-Disposition: ' . ($force_download ? 'attachment' : 'inline') . '; filename="' . addslashes($form['original_name']) . '"');
     header('X-Content-Type-Options: nosniff');
-    header('Content-Length: ' . filesize($file_path));
-    readfile($file_path);
+    header('Content-Length: ' . storageSize($file_path));
+    $fileBytes = storageRead($file_path);
+    if ($fileBytes === false) { http_response_code(404); exit('Form file not found.'); }
+    echo $fileBytes;
     exit;
 }
 
-if (!is_dir($clearance_dir)) {
+if (!objectStorageConfigured() && !is_dir($clearance_dir)) {
     mkdir($clearance_dir, 0755, true);
 }
 
@@ -94,7 +96,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'uploa
             $existing = $existing_stmt->get_result()->fetch_assoc();
             $existing_stmt->close();
 
-            if (!move_uploaded_file($file['tmp_name'], $destination)) {
+            if (!storageMoveUploadedFile($file['tmp_name'], $destination)) {
                 $err = 'The file could not be saved. Check the uploads folder permissions.';
             } else {
                 $stmt = $conn->prepare(
@@ -105,14 +107,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'uploa
                 if ($stmt->execute()) {
                     if ($existing && $existing['file_name'] !== $stored_name) {
                         $old_path = $clearance_dir . basename($existing['file_name']);
-                        if (is_file($old_path)) {
-                            @unlink($old_path);
+                        if (storageExists($old_path)) {
+                            storageDelete($old_path);
                         }
                     }
                     logActivity($conn, $_SESSION['user_id'], 'UPLOAD_CLEARANCE_FORM', "Uploaded {$form_types[$form_type]} clearance form");
                     $msg = $form_types[$form_type] . ' clearance form uploaded successfully.';
                 } else {
-                    @unlink($destination);
+                    storageDelete($destination);
                     $err = 'The clearance form could not be saved.';
                 }
                 $stmt->close();

@@ -12,8 +12,8 @@ if (!$department) redirect(BASE_URL . '/index.php');
 $conn->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_photo VARCHAR(255) NULL");
 $photo_name = $conn->query("SELECT profile_photo FROM users WHERE id = " . intval($_SESSION['user_id']))->fetch_assoc()['profile_photo'] ?? '';
 $photo_path = __DIR__ . '/../uploads/avatars/' . $photo_name;
-$photo_url = $photo_name && file_exists($photo_path)
-    ? BASE_URL . '/uploads/avatars/' . $photo_name . '?v=' . filemtime($photo_path)
+$photo_url = $photo_name && storageExists($photo_path)
+    ? BASE_URL . '/uploads/avatars/' . $photo_name . '?v=' . (storageModified($photo_path) ?: 0)
     : '';
 
 $active_school_year = setupSchoolYears($conn);

@@ -28,7 +28,7 @@ if (isset($_GET['view'])) {
     }
 
     $file_path = __DIR__ . '/../uploads/clearance_submissions/' . basename($submission['file_name']);
-    if (!is_file($file_path)) {
+    if (!storageExists($file_path)) {
         http_response_code(404);
         exit('Submission file not found.');
     }
@@ -39,15 +39,17 @@ if (isset($_GET['view'])) {
         'doc' => 'application/msword',
         'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     ];
-    $mime = $mime_types[$extension] ?? (mime_content_type($file_path) ?: 'application/octet-stream');
+    $mime = $mime_types[$extension] ?? 'application/octet-stream';
     $force_download = ($_GET['download'] ?? '') === '1'
         || !in_array($extension, ['pdf', 'docx'], true)
         || ($extension === 'docx' && ($_GET['raw'] ?? '') !== '1');
     header('Content-Type: ' . $mime);
     header('Content-Disposition: ' . ($force_download ? 'attachment' : 'inline') . '; filename="' . addslashes($submission['original_name']) . '"');
     header('X-Content-Type-Options: nosniff');
-    header('Content-Length: ' . filesize($file_path));
-    readfile($file_path);
+    header('Content-Length: ' . storageSize($file_path));
+    $fileBytes = storageRead($file_path);
+    if ($fileBytes === false) { http_response_code(404); exit('Submission file not found.'); }
+    echo $fileBytes;
     exit;
 }
 

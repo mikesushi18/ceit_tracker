@@ -92,18 +92,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['photo'])) {
     } else {
         $ext   = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
         $dir   = __DIR__ . '/uploads/avatars/';
-        if (!is_dir($dir)) mkdir($dir, 0755, true);
         $fname = 'user_' . $user_id . '_' . bin2hex(random_bytes(8)) . '.' . $ext;
         $dest  = $dir . $fname;
-        foreach (glob($dir . 'user_' . $user_id . '.*') as $old) { @unlink($old); }
-        if (move_uploaded_file($file['tmp_name'], $dest)) {
+        $previous_photo = $conn->query("SELECT profile_photo FROM users WHERE id = $user_id")->fetch_assoc()['profile_photo'] ?? null;
+        if (storageMoveUploadedFile($file['tmp_name'], $dest)) {
             $stmt = $conn->prepare('UPDATE users SET profile_photo = ? WHERE id = ?');
             $stmt->bind_param('si', $fname, $user_id);
             if ($stmt->execute()) {
                 $_SESSION['profile_photo'] = $fname;
+                if ($previous_photo && $previous_photo !== $fname) {
+                    storageDelete($dir . basename($previous_photo));
+                }
                 $msg = 'Profile photo updated successfully!';
             } else {
-                @unlink($dest);
+                storageDelete($dest);
                 $err = 'Could not update the profile photo record.';
             }
             $stmt->close();
@@ -137,8 +139,8 @@ if (in_array($role, ['admin', 'sub-admin'], true)) {
 $photo_url = '';
 if (!empty($user['profile_photo'])) {
     $photo_path = __DIR__ . '/uploads/avatars/' . $user['profile_photo'];
-    if (file_exists($photo_path)) {
-        $photo_url = BASE_URL . '/uploads/avatars/' . $user['profile_photo'] . '?v=' . filemtime($photo_path);
+    if (storageExists($photo_path)) {
+        $photo_url = BASE_URL . '/uploads/avatars/' . $user['profile_photo'] . '?v=' . (storageModified($photo_path) ?: 0);
     }
 }
 

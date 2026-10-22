@@ -190,7 +190,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['action'] ?? '', ['
         $file_type = $has_new_file ? ($file['type'] ?: 'application/octet-stream') : ($existing_rows[0]['file_type'] ?? 'application/octet-stream');
         if (!$is_update) $group_id = bin2hex(random_bytes(16));
         $destination = UPLOAD_DIR . $stored_name;
-        $file_saved = !$has_new_file || move_uploaded_file($file['tmp_name'], $destination);
+        $file_saved = !$has_new_file || storageMoveUploadedFile($file['tmp_name'], $destination);
 
         if (!$file_saved) {
             $err = 'The file could not be saved. Check the uploads folder permissions.';
@@ -227,7 +227,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['action'] ?? '', ['
                 $transaction_saved = true;
             } catch (Throwable $exception) {
                 $conn->rollback();
-                if ($has_new_file && is_file($destination)) unlink($destination);
+                if ($has_new_file && storageExists($destination)) storageDelete($destination);
                 $_SESSION['flash_msg'] = '';
                 $_SESSION['flash_err'] = 'The shared upload could not be saved. Please try again.';
             }
@@ -241,7 +241,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['action'] ?? '', ['
                         $still_used = (int) ($stmt->get_result()->fetch_assoc()['total'] ?? 0);
                         $stmt->close();
                         $old_path = UPLOAD_DIR . basename($old_file_name);
-                        if (!$still_used && is_file($old_path)) unlink($old_path);
+                        if (!$still_used && storageExists($old_path)) storageDelete($old_path);
                     }
                 }
 

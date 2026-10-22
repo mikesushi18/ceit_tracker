@@ -144,7 +144,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_user'])) {
 
             if (!empty($target_user['profile_photo'])) {
                 $avatar_path = __DIR__ . '/../uploads/avatars/' . $target_user['profile_photo'];
-                if (is_file($avatar_path)) @unlink($avatar_path);
+                if (storageExists($avatar_path)) storageDelete($avatar_path);
             }
             $msg = 'User permanently deleted.';
         } catch (Throwable $delete_error) {
@@ -318,8 +318,8 @@ $departments = $conn->query("SELECT * FROM departments ORDER BY code")->fetch_al
             <tr>
                 <td style="font-weight:600">
                     <?php $avatar_path = __DIR__ . '/../uploads/avatars/' . ($u['profile_photo'] ?? ''); ?>
-                    <?php if (!empty($u['profile_photo']) && is_file($avatar_path)): ?>
-                        <img class="user-avatar" src="<?= BASE_URL . '/uploads/avatars/' . rawurlencode($u['profile_photo']) . '?v=' . filemtime($avatar_path) ?>" alt="">
+                    <?php if (!empty($u['profile_photo']) && storageExists($avatar_path)): ?>
+                        <img class="user-avatar" src="<?= BASE_URL . '/uploads/avatars/' . rawurlencode($u['profile_photo']) . '?v=' . (storageModified($avatar_path) ?: 0) ?>" alt="">
                     <?php else: ?>
                         <span class="user-avatar user-avatar-fallback"><?= mb_strtoupper(mb_substr($u['full_name'], 0, 1)) ?></span>
                     <?php endif; ?>

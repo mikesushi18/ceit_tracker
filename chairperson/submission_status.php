@@ -14,8 +14,8 @@ $conn->query("ALTER TABLE folders ADD COLUMN IF NOT EXISTS subfolder_position IN
 $conn->query("CREATE TABLE IF NOT EXISTS folder_groups (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(200) NOT NULL, semester VARCHAR(100) DEFAULT 'End of Semester', description TEXT, status ENUM('active','pending') DEFAULT 'active', school_year_id INT, created_by INT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)");
 $conn->query("ALTER TABLE folder_groups ADD COLUMN IF NOT EXISTS status ENUM('active','pending') DEFAULT 'active'");
 $_photo = $conn->query("SELECT profile_photo FROM users WHERE id = {$_SESSION['user_id']}")->fetch_assoc()['profile_photo'] ?? '';
-$_photo_url = $_photo && file_exists(__DIR__ . '/../uploads/avatars/' . $_photo)
-    ? BASE_URL . '/uploads/avatars/' . $_photo . '?v=' . filemtime(__DIR__ . '/../uploads/avatars/' . $_photo)
+$_photo_url = $_photo && storageExists(__DIR__ . '/../uploads/avatars/' . $_photo)
+    ? BASE_URL . '/uploads/avatars/' . $_photo . '?v=' . (storageModified(__DIR__ . '/../uploads/avatars/' . $_photo) ?: 0)
     : '';
 
 $dept = $conn->query("SELECT * FROM departments WHERE id = $dept_id")->fetch_assoc();
@@ -30,8 +30,8 @@ $faculty = $conn->query("
 ")->fetch_all(MYSQLI_ASSOC);
 foreach ($faculty as &$faculty_member) {
     $photo_path = __DIR__ . '/../uploads/avatars/' . ($faculty_member['profile_photo'] ?? '');
-    $faculty_member['profile_photo_url'] = !empty($faculty_member['profile_photo']) && file_exists($photo_path)
-        ? BASE_URL . '/uploads/avatars/' . $faculty_member['profile_photo'] . '?v=' . filemtime($photo_path)
+    $faculty_member['profile_photo_url'] = !empty($faculty_member['profile_photo']) && storageExists($photo_path)
+        ? BASE_URL . '/uploads/avatars/' . $faculty_member['profile_photo'] . '?v=' . (storageModified($photo_path) ?: 0)
         : null;
 }
 unset($faculty_member);
@@ -450,8 +450,8 @@ $avatar_colors = ['#F97316','#3b82f6','#8b5cf6','#ec4899','#14b8a6','#f59e0b','#
 
             <!-- CLICKABLE HEADER -->
             <div class="fac-header" onclick="toggleFac(<?= $fac['id'] ?>)">
-                <?php if (!empty($fac['profile_photo']) && file_exists($faculty_photo_path)): ?>
-                <img class="fac-avatar" src="<?= BASE_URL . '/uploads/avatars/' . $fac['profile_photo'] . '?v=' . filemtime($faculty_photo_path) ?>" alt="">
+                <?php if (!empty($fac['profile_photo']) && storageExists($faculty_photo_path)): ?>
+                <img class="fac-avatar" src="<?= BASE_URL . '/uploads/avatars/' . $fac['profile_photo'] . '?v=' . (storageModified($faculty_photo_path) ?: 0) ?>" alt="">
                 <?php else: ?>
                 <div class="fac-avatar" style="background:<?= $color ?>"><?= mb_strtoupper(mb_substr($fac['full_name'],0,1)) ?></div>
                 <?php endif; ?>

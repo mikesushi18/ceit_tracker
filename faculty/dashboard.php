@@ -16,8 +16,8 @@ if (!$dept_id) { session_destroy(); redirect(BASE_URL . '/index.php'); }
 // Profile photo
 $conn->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_photo VARCHAR(255) NULL");
 $_photo = $conn->query("SELECT profile_photo FROM users WHERE id = {$_SESSION['user_id']}")->fetch_assoc()['profile_photo'] ?? '';
-$_photo_url = $_photo && file_exists(__DIR__ . '/../uploads/avatars/' . $_photo)
-    ? BASE_URL . '/uploads/avatars/' . $_photo . '?v=' . filemtime(__DIR__ . '/../uploads/avatars/' . $_photo)
+$_photo_url = $_photo && storageExists(__DIR__ . '/../uploads/avatars/' . $_photo)
+    ? BASE_URL . '/uploads/avatars/' . $_photo . '?v=' . (storageModified(__DIR__ . '/../uploads/avatars/' . $_photo) ?: 0)
     : '';
 $dept = $conn->query("SELECT * FROM departments WHERE id = $dept_id")->fetch_assoc();
 $user = $conn->query("SELECT * FROM users WHERE id = $user_id")->fetch_assoc();
@@ -127,8 +127,8 @@ if ($tbl_check && $tbl_check->num_rows > 0) {
         $a['image_url'] = ($a['image_file'] ?? '') ? $ann_base . $a['image_file'] : null;
             $a['pdf_url']   = ($a['pdf_file']   ?? '') ? $ann_base . $a['pdf_file']   : null;
             $author_photo_path = dirname(__DIR__) . '/uploads/avatars/' . ($a['author_photo'] ?? '');
-            $a['author_photo_url'] = !empty($a['author_photo']) && is_file($author_photo_path)
-                ? BASE_URL . '/uploads/avatars/' . rawurlencode($a['author_photo']) . '?v=' . filemtime($author_photo_path)
+            $a['author_photo_url'] = !empty($a['author_photo']) && storageExists($author_photo_path)
+                ? BASE_URL . '/uploads/avatars/' . rawurlencode($a['author_photo']) . '?v=' . (storageModified($author_photo_path) ?: 0)
                 : null;
         return $a;
     }, $ann_raw);

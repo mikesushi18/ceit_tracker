@@ -19,14 +19,21 @@ if (!$file_id) { http_response_code(404); exit('File not found.'); }
 
 // For chairperson: only files from their own department
 if ($role === 'chairperson') {
-    $dept_id = $_SESSION['department_id'];
-    $file = $conn->query("
+    $department_stmt = $conn->prepare('SELECT department_id FROM users WHERE id = ?');
+    $department_stmt->bind_param('i', $_SESSION['user_id']);
+    $department_stmt->execute();
+    $dept_id = (int) ($department_stmt->get_result()->fetch_assoc()['department_id'] ?? 0);
+    $department_stmt->close();
+    $file_stmt = $conn->prepare("
         SELECT fi.*, fo.department_id
         FROM files fi
         JOIN folders fo ON fo.id = fi.folder_id
-        JOIN users u ON u.id = fi.uploaded_by
-        WHERE fi.id = $file_id AND fo.department_id = $dept_id
-    ")->fetch_assoc();
+        WHERE fi.id = ? AND fo.department_id = ?
+    ");
+    $file_stmt->bind_param('ii', $file_id, $dept_id);
+    $file_stmt->execute();
+    $file = $file_stmt->get_result()->fetch_assoc();
+    $file_stmt->close();
 } else {
     $file = $conn->query("SELECT * FROM files WHERE id = $file_id")->fetch_assoc();
 }
@@ -34,7 +41,7 @@ if ($role === 'chairperson') {
 if (!$file) { http_response_code(404); exit('File not found.'); }
 
 $filepath = UPLOAD_DIR . $file['file_name'];
-if (!file_exists($filepath)) { http_response_code(404); exit('File not found on server.'); }
+if (!storageExists($filepath)) { http_response_code(404); exit('File not found on server.'); }
 
 $mime = $file['file_type'];
 $original = $file['original_name'];
@@ -47,7 +54,9 @@ if ($download) {
 } else {
     header('Content-Disposition: inline; filename="' . addslashes($original) . '"');
 }
-header('Content-Length: ' . filesize($filepath));
+header('Content-Length: ' . storageSize($filepath));
 header('Cache-Control: private, max-age=3600');
-readfile($filepath);
+$bytes = storageRead($filepath);
+if ($bytes === false) { http_response_code(404); exit('File not found on server.'); }
+echo $bytes;
 exit;

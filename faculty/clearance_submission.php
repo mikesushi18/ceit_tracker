@@ -8,7 +8,7 @@ $user = $conn->query("SELECT u.*, d.code AS dept_code, d.name AS dept_name FROM 
 $form_types = ['regular' => 'Regular', 'contract_of_service' => 'Contract of Service'];
 $form_type = $user['employment_type'] ?? '';
 $clearance_dir = __DIR__ . '/../uploads/clearance_submissions/';
-if (!is_dir($clearance_dir)) mkdir($clearance_dir, 0755, true);
+if (!objectStorageConfigured() && !is_dir($clearance_dir)) mkdir($clearance_dir, 0755, true);
 
 $conn->query("CREATE TABLE IF NOT EXISTS clearance_submissions (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -34,7 +34,7 @@ if (isset($_GET['view'])) {
     }
 
     $file_path = $clearance_dir . basename($view_file['file_name']);
-    if (!is_file($file_path)) {
+    if (!storageExists($file_path)) {
         http_response_code(404);
         exit('Submission file not found.');
     }
@@ -45,15 +45,17 @@ if (isset($_GET['view'])) {
         'doc' => 'application/msword',
         'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     ];
-    $mime = $mime_types[$extension] ?? (mime_content_type($file_path) ?: 'application/octet-stream');
+    $mime = $mime_types[$extension] ?? 'application/octet-stream';
     $force_download = ($_GET['download'] ?? '') === '1'
         || !in_array($extension, ['pdf', 'docx'], true)
         || ($extension === 'docx' && ($_GET['raw'] ?? '') !== '1');
     header('Content-Type: ' . $mime);
     header('Content-Disposition: ' . ($force_download ? 'attachment' : 'inline') . '; filename="' . addslashes($view_file['original_name']) . '"');
     header('X-Content-Type-Options: nosniff');
-    header('Content-Length: ' . filesize($file_path));
-    readfile($file_path);
+    header('Content-Length: ' . storageSize($file_path));
+    $fileBytes = storageRead($file_path);
+    if ($fileBytes === false) { http_response_code(404); exit('Submission file not found.'); }
+    echo $fileBytes;
     exit;
 }
 
@@ -78,17 +80,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stored_name = 'faculty_' . $user_id . '_' . bin2hex(random_bytes(12)) . '.' . $extension;
             $destination = $clearance_dir . $stored_name;
             $old = $conn->query("SELECT file_name FROM clearance_submissions WHERE faculty_id = $user_id")->fetch_assoc();
-            if (!move_uploaded_file($file['tmp_name'], $destination)) {
+            if (!storageMoveUploadedFile($file['tmp_name'], $destination)) {
                 $err = 'The file could not be saved.';
             } else {
                 $stmt = $conn->prepare('INSERT INTO clearance_submissions (faculty_id, form_type, file_name, original_name) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE form_type = VALUES(form_type), file_name = VALUES(file_name), original_name = VALUES(original_name), submitted_at = CURRENT_TIMESTAMP');
                 $stmt->bind_param('isss', $user_id, $form_type, $stored_name, $file['name']);
                 if ($stmt->execute()) {
-                    if ($old && is_file($clearance_dir . basename($old['file_name']))) @unlink($clearance_dir . basename($old['file_name']));
+                    if ($old && storageExists($clearance_dir . basename($old['file_name']))) storageDelete($clearance_dir . basename($old['file_name']));
                     logActivity($conn, $user_id, 'SUBMIT_CLEARANCE', 'Submitted clearance form');
                     $msg = 'Clearance form submitted successfully.';
                 } else {
-                    @unlink($destination);
+                    storageDelete($destination);
                     $err = 'The clearance form could not be saved.';
                 }
                 $stmt->close();

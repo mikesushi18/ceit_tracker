@@ -7,8 +7,8 @@ requireAdminDashboardAccess();
 $active_sy = setupSchoolYears($conn);
 $conn->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_photo VARCHAR(255) NULL");
 $_photo = $conn->query("SELECT profile_photo FROM users WHERE id = " . (int) $_SESSION['user_id'])->fetch_assoc()['profile_photo'] ?? '';
-$_photo_url = $_photo && file_exists(__DIR__ . '/../uploads/avatars/' . $_photo)
-    ? BASE_URL . '/uploads/avatars/' . $_photo . '?v=' . filemtime(__DIR__ . '/../uploads/avatars/' . $_photo)
+$_photo_url = $_photo && storageExists(__DIR__ . '/../uploads/avatars/' . $_photo)
+    ? BASE_URL . '/uploads/avatars/' . $_photo . '?v=' . (storageModified(__DIR__ . '/../uploads/avatars/' . $_photo) ?: 0)
     : '';
 
 $departments = $conn->query("SELECT * FROM departments ORDER BY code")->fetch_all(MYSQLI_ASSOC);

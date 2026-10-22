@@ -1,35 +1,60 @@
 <?php
 // includes/config.php
-define('DB_HOST', 'localhost');
-define('DB_PORT', 3307);   // <-- your XAMPP MySQL port. Change this if it's different (check phpMyAdmin / my.ini).
-define('DB_USER', 'root');
-define('DB_PASS', '');
-define('DB_NAME', 'ceit_tracker');
+$__env = static function (string $name, string $default = ''): string {
+    $value = getenv($name);
+    return $value === false ? $default : $value;
+};
 
-define('UPLOAD_DIR', __DIR__ . '/../uploads/');
+define('DB_HOST', $__env('DB_HOST', 'localhost'));
+define('DB_PORT', (int) $__env('DB_PORT', '3307'));
+define('DB_USER', $__env('DB_USER', 'root'));
+define('DB_PASS', $__env('DB_PASS'));
+define('DB_NAME', $__env('DB_NAME', 'ceit_tracker'));
+
+define('PROJECT_ROOT', dirname(__DIR__));
+$__uploadDir = $__env('COLTRACE_UPLOAD_DIR', __DIR__ . '/../uploads/');
+define('UPLOAD_DIR', rtrim($__uploadDir, '\\/') . DIRECTORY_SEPARATOR);
+define('S3_ENDPOINT', rtrim($__env('S3_ENDPOINT'), '/'));
+define('S3_BUCKET', $__env('S3_BUCKET'));
+define('S3_REGION', $__env('S3_REGION', 'auto'));
+define('S3_ACCESS_KEY', $__env('S3_ACCESS_KEY'));
+define('S3_SECRET_KEY', $__env('S3_SECRET_KEY'));
 
 // Auto-detect BASE_URL from the actual host/port the app is being served on,
 // so it works whether you access it via localhost, 127.0.0.1, a different
 // port (e.g. :8080), etc. No need to hardcode it.
-$__scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-$__host   = $_SERVER['HTTP_HOST'] ?? 'localhost:8080'; // includes port if non-standard, e.g. localhost:8080
+$__baseUrl = rtrim($__env('APP_BASE_URL'), '/');
+if ($__baseUrl === '') {
+    $__scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    $__host = $_SERVER['HTTP_HOST'] ?? 'localhost:8080';
+    $__vercelHost = $__env('VERCEL_URL', $__env('VERCEL_PROJECT_PRODUCTION_URL'));
+    if ($__vercelHost !== '') {
+        $__scheme = 'https';
+        $__host = $__vercelHost;
+    }
+}
 
 // includes/config.php always lives at <project_root>/includes/config.php,
 // so the project root's URL path is __DIR__ one level up, translated from
 // a filesystem path to a URL path relative to the web server's document root.
 $__docRoot    = str_replace('\\', '/', rtrim($_SERVER['DOCUMENT_ROOT'] ?? '', '/'));
 $__projectDir = str_replace('\\', '/', rtrim(dirname(__DIR__), '/')); // one level up from /includes
-$__urlPath    = ($__docRoot !== '' && str_starts_with($__projectDir, $__docRoot))
-    ? substr($__projectDir, strlen($__docRoot))
-    : '/ceit_tracker'; // fallback if document root can't be determined
+$__urlPath = !empty($__vercelHost)
+    ? ''
+    : (($__docRoot !== '' && str_starts_with($__projectDir, $__docRoot))
+        ? substr($__projectDir, strlen($__docRoot))
+        : '/ceit_tracker');
+if ($__baseUrl === '') {
+    $__baseUrl = $__scheme . '://' . $__host . $__urlPath;
+}
 
-define('BASE_URL', $__scheme . '://' . $__host . $__urlPath);
+define('BASE_URL', $__baseUrl);
 
 // ── Google Sign-In ──
 // Get this from https://console.cloud.google.com/ > APIs & Services > Credentials
 // (OAuth client ID, type "Web application"). Add BASE_URL as an
 // "Authorized JavaScript origin" (no trailing slash, e.g. http://localhost).
-define('GOOGLE_CLIENT_ID', '324607446073-jg6j0sbare8ot16ls68b1lstt6t5spet.apps.googleusercontent.com');
+define('GOOGLE_CLIENT_ID', $__env('GOOGLE_CLIENT_ID', '324607446073-jg6j0sbare8ot16ls68b1lstt6t5spet.apps.googleusercontent.com'));
 
 // Only allow these email domains to be linked / used to sign in.
 // Add more domains here anytime — e.g. your school's Google Workspace domain.
@@ -38,11 +63,11 @@ define('ALLOWED_EMAIL_DOMAINS', ['cvsu.edu.ph']);
 // ── Gmail SMTP (for sending OTP codes) ──
 // Use an App Password, NOT your real Gmail password:
 // https://myaccount.google.com/apppasswords (requires 2-Step Verification ON)
-define('SMTP_HOST', 'smtp.gmail.com');
-define('SMTP_PORT', 587);
-define('SMTP_USER', 'mikecsv18@gmail.com');
-define('SMTP_APP_PASSWORD', 'mnyt yqvh ekuo rikb');
-define('SMTP_FROM_NAME', 'ColTrace - CEIT File Tracking System');
+define('SMTP_HOST', $__env('SMTP_HOST', 'smtp.gmail.com'));
+define('SMTP_PORT', (int) $__env('SMTP_PORT', '587'));
+define('SMTP_USER', $__env('SMTP_USER'));
+define('SMTP_APP_PASSWORD', $__env('SMTP_APP_PASSWORD'));
+define('SMTP_FROM_NAME', $__env('SMTP_FROM_NAME', 'ColTrace - CEIT File Tracking System'));
 
 // OTP settings
 define('OTP_LENGTH', 6);
@@ -50,9 +75,18 @@ define('OTP_EXPIRY_MINUTES', 5);
 define('OTP_MAX_ATTEMPTS', 5);
 define('OTP_MAX_REQUESTS_PER_HOUR', 5);
 
-// Create upload dir if not exists
-if (!is_dir(UPLOAD_DIR)) {
+require_once __DIR__ . '/object_storage.php';
+
+// Local development uses disk; Vercel uses durable S3-compatible object storage.
+if ($__env('VERCEL') === '' && !is_dir(UPLOAD_DIR)) {
     mkdir(UPLOAD_DIR, 0755, true);
+}
+
+if ($__env('VERCEL') !== '' && (DB_HOST === '' || DB_HOST === 'localhost' || DB_HOST === '127.0.0.1')) {
+    throw new RuntimeException('Set DB_HOST to a reachable managed database in the Vercel project environment variables.');
+}
+if ($__env('VERCEL') !== '' && !objectStorageConfigured()) {
+    throw new RuntimeException('Configure S3_ENDPOINT, S3_BUCKET, S3_ACCESS_KEY, and S3_SECRET_KEY in the Vercel project environment variables.');
 }
 
 $conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME, DB_PORT);
@@ -115,6 +149,16 @@ if (!$subject_index || $subject_index->num_rows === 0) {
     $conn->query("ALTER TABLE subjects ADD UNIQUE KEY unique_faculty_subject (faculty_id, subject_code)");
 }
 
+require_once __DIR__ . '/database_session_handler.php';
+$sessionHandler = new DatabaseSessionHandler($conn);
+session_set_save_handler($sessionHandler, true);
+session_set_cookie_params([
+    'lifetime' => 0,
+    'path' => '/',
+    'secure' => $__env('VERCEL') !== '' || (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off'),
+    'httponly' => true,
+    'samesite' => 'Lax',
+]);
 session_start();
 
 require_once __DIR__ . '/role_sidebar.php';

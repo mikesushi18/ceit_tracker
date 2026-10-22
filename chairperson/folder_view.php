@@ -21,8 +21,8 @@ $conn->query("ALTER TABLE folders ADD COLUMN IF NOT EXISTS subfolder_position IN
 $conn->query("CREATE TABLE IF NOT EXISTS folder_groups (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(200) NOT NULL, semester VARCHAR(100) DEFAULT 'End of Semester', description TEXT, status ENUM('active','pending') DEFAULT 'active', school_year_id INT, created_by INT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)");
 $conn->query("ALTER TABLE folder_groups ADD COLUMN IF NOT EXISTS status ENUM('active','pending') DEFAULT 'active'");
 $_photo = $conn->query("SELECT profile_photo FROM users WHERE id = {$_SESSION['user_id']}")->fetch_assoc()['profile_photo'] ?? '';
-$_photo_url = $_photo && file_exists(__DIR__ . '/../uploads/avatars/' . $_photo)
-    ? BASE_URL . '/uploads/avatars/' . $_photo . '?v=' . filemtime(__DIR__ . '/../uploads/avatars/' . $_photo)
+$_photo_url = $_photo && storageExists(__DIR__ . '/../uploads/avatars/' . $_photo)
+    ? BASE_URL . '/uploads/avatars/' . $_photo . '?v=' . (storageModified(__DIR__ . '/../uploads/avatars/' . $_photo) ?: 0)
     : '';
 
 $dept = $conn->query("SELECT * FROM departments WHERE id = $dept_id")->fetch_assoc();

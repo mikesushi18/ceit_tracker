@@ -21,8 +21,8 @@ $folder_id = intval($_GET['id'] ?? 0);
 // Profile photo
 $conn->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_photo VARCHAR(255) NULL");
 $_photo = $conn->query("SELECT profile_photo FROM users WHERE id = $user_id")->fetch_assoc()['profile_photo'] ?? '';
-$_photo_url = $_photo && file_exists(__DIR__ . '/../uploads/avatars/' . $_photo)
-    ? BASE_URL . '/uploads/avatars/' . $_photo . '?v=' . filemtime(__DIR__ . '/../uploads/avatars/' . $_photo)
+$_photo_url = $_photo && storageExists(__DIR__ . '/../uploads/avatars/' . $_photo)
+    ? BASE_URL . '/uploads/avatars/' . $_photo . '?v=' . (storageModified(__DIR__ . '/../uploads/avatars/' . $_photo) ?: 0)
     : '';
 
     $conn->query("CREATE TABLE IF NOT EXISTS department_subjects (
@@ -160,7 +160,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 $ext = strtolower(pathinfo($original, PATHINFO_EXTENSION));
                 $safe_name = uniqid('file_') . '_' . time() . '.' . $ext;
                 $dest = UPLOAD_DIR . $safe_name;
-                if (!move_uploaded_file($tmp_name, $dest)) { $failed[] = $original . ' could not be saved'; continue; }
+                if (!storageMoveUploadedFile($tmp_name, $dest)) { $failed[] = $original . ' could not be saved'; continue; }
                 $file_type = $file_type ?: 'application/octet-stream';
                 $stmt = $conn->prepare("INSERT INTO files (folder_id, uploaded_by, file_name, original_name, subject_code, description, file_size, file_type, content_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
                 $stmt->bind_param('iissssiss', $folder_id, $user_id, $safe_name, $original, $subject['subject_code'], $subject['subject_description'], $file_size, $file_type, $content_hash);
@@ -169,7 +169,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     logActivity($conn, $user_id, 'UPLOAD_FILE', "Uploaded '$original' to folder '{$folder['folder_name']}' for {$subject['subject_code']}");
                 } else {
                     $failed[] = $original . ' database error';
-                    unlink($dest);
+                    storageDelete($dest);
                 }
                 $stmt->close();
             }
@@ -201,7 +201,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $err = 'This is a shared upload. Use Edit Shared Upload so every recipient stays in sync.';
     } elseif ($file_row) {
         $fpath = UPLOAD_DIR . $file_row['file_name'];
-        if (file_exists($fpath)) unlink($fpath);
+        if (storageExists($fpath)) storageDelete($fpath);
         $conn->query("DELETE FROM files WHERE id = $file_id");
         logActivity($conn, $user_id, 'DELETE_FILE', "Deleted '{$file_row['original_name']}'");
         $msg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg> File deleted.';
@@ -238,7 +238,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             $safe_name = uniqid('file_') . '_' . time() . '.' . $ext;
             $dest      = UPLOAD_DIR . $safe_name;
 
-            if (move_uploaded_file($file['tmp_name'], $dest)) {
+            if (storageMoveUploadedFile($file['tmp_name'], $dest)) {
                 $old_path = UPLOAD_DIR . $file_row['file_name'];
                 $remarks  = sanitize($_POST['remarks'] ?? $file_row['remarks']);
                 $ftype    = $file['type'];
@@ -257,10 +257,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 } catch (Throwable $exception) {
                     $conn->rollback();
                     $err = $exception->getMessage();
-                    unlink($dest);
+                    storageDelete($dest);
                 }
                 if ($replacementSaved) {
-                    if (file_exists($old_path) && !unlink($old_path)) {
+                    if (storageExists($old_path) && !storageDelete($old_path)) {
                         error_log('Unable to remove replaced upload: ' . $old_path);
                     }
                     logActivity($conn, $user_id, 'REPLACE_FILE', "Replaced submission with '$original' in folder '{$folder['folder_name']}'");

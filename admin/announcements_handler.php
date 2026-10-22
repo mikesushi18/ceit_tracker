@@ -52,10 +52,9 @@ function uploadAnnFile(string $field, array $allowed_exts, string $subdir): arra
         return ['file' => null, 'original_name' => null, 'err' => 'File exceeds 10 MB limit.'];
     }
     $dir = dirname(__DIR__) . '/uploads/' . $subdir . '/';
-    if (!is_dir($dir)) mkdir($dir, 0755, true);
     $name = uniqid('ann_') . '_' . time() . '.' . $ext;
     $dest = $dir . $name;
-    if (!move_uploaded_file($file['tmp_name'], $dest)) {
+    if (!storageMoveUploadedFile($file['tmp_name'], $dest)) {
         return ['file' => null, 'original_name' => null, 'err' => 'Could not save file. Check server write permissions for uploads/' . $subdir . '/'];
     }
     $original_name = basename(str_replace('\\', '/', (string) $file['name']));
@@ -92,8 +91,8 @@ if ($action === 'create') {
     $base = BASE_URL . '/uploads/announcements/';
     $author = $conn->query("SELECT full_name, profile_photo FROM users WHERE id = $uid")->fetch_assoc();
     $author_photo_path = dirname(__DIR__) . '/uploads/avatars/' . ($author['profile_photo'] ?? '');
-    $author_photo_url = !empty($author['profile_photo']) && file_exists($author_photo_path)
-        ? BASE_URL . '/uploads/avatars/' . $author['profile_photo'] . '?v=' . filemtime($author_photo_path)
+    $author_photo_url = !empty($author['profile_photo']) && storageExists($author_photo_path)
+        ? BASE_URL . '/uploads/avatars/' . $author['profile_photo'] . '?v=' . (storageModified($author_photo_path) ?: 0)
         : null;
     echo json_encode([
         'success'    => true,
@@ -127,8 +126,8 @@ if ($action === 'create') {
     $upload_errors = array_filter([$img_res['err'], $pdf_res['err']]);
     if ($upload_errors) {
         foreach ([$img_res['file'], $pdf_res['file']] as $uploaded_file) {
-            if ($uploaded_file && file_exists(dirname(__DIR__) . '/uploads/announcements/' . $uploaded_file)) {
-                unlink(dirname(__DIR__) . '/uploads/announcements/' . $uploaded_file);
+            if ($uploaded_file && storageExists(dirname(__DIR__) . '/uploads/announcements/' . $uploaded_file)) {
+                storageDelete(dirname(__DIR__) . '/uploads/announcements/' . $uploaded_file);
             }
         }
         echo json_encode(['success' => false, 'error' => implode(' ', $upload_errors)]);
@@ -152,8 +151,8 @@ if ($action === 'create') {
         if (!$history_stmt) {
             $conn->rollback();
             foreach ([$img_res['file'], $pdf_res['file']] as $uploaded_file) {
-                if ($uploaded_file && file_exists(dirname(__DIR__) . '/uploads/announcements/' . $uploaded_file)) {
-                    unlink(dirname(__DIR__) . '/uploads/announcements/' . $uploaded_file);
+                if ($uploaded_file && storageExists(dirname(__DIR__) . '/uploads/announcements/' . $uploaded_file)) {
+                    storageDelete(dirname(__DIR__) . '/uploads/announcements/' . $uploaded_file);
                 }
             }
             echo json_encode(['success' => false, 'error' => 'Could not save announcement history.']);
@@ -165,8 +164,8 @@ if ($action === 'create') {
             $history_stmt->close();
             $conn->rollback();
             foreach ([$img_res['file'], $pdf_res['file']] as $uploaded_file) {
-                if ($uploaded_file && file_exists(dirname(__DIR__) . '/uploads/announcements/' . $uploaded_file)) {
-                    unlink(dirname(__DIR__) . '/uploads/announcements/' . $uploaded_file);
+                if ($uploaded_file && storageExists(dirname(__DIR__) . '/uploads/announcements/' . $uploaded_file)) {
+                    storageDelete(dirname(__DIR__) . '/uploads/announcements/' . $uploaded_file);
                 }
             }
             echo json_encode(['success' => false, 'error' => 'Could not save announcement history.']);
@@ -181,8 +180,8 @@ if ($action === 'create') {
         $stmt->close();
         $conn->rollback();
         foreach ([$img_res['file'], $pdf_res['file']] as $uploaded_file) {
-            if ($uploaded_file && file_exists(dirname(__DIR__) . '/uploads/announcements/' . $uploaded_file)) {
-                unlink(dirname(__DIR__) . '/uploads/announcements/' . $uploaded_file);
+            if ($uploaded_file && storageExists(dirname(__DIR__) . '/uploads/announcements/' . $uploaded_file)) {
+                storageDelete(dirname(__DIR__) . '/uploads/announcements/' . $uploaded_file);
             }
         }
         echo json_encode(['success' => false, 'error' => 'Could not update announcement.']);
@@ -200,13 +199,13 @@ if ($action === 'create') {
     $row = $conn->query("SELECT image_file, pdf_file FROM announcements WHERE id = $id")->fetch_assoc();
     if ($row) {
         $base_path = dirname(__DIR__) . '/uploads/announcements/';
-        if ($row['image_file'] && file_exists($base_path . $row['image_file'])) unlink($base_path . $row['image_file']);
-        if ($row['pdf_file']   && file_exists($base_path . $row['pdf_file']))   unlink($base_path . $row['pdf_file']);
+        if ($row['image_file'] && storageExists($base_path . $row['image_file'])) storageDelete($base_path . $row['image_file']);
+        if ($row['pdf_file']   && storageExists($base_path . $row['pdf_file']))   storageDelete($base_path . $row['pdf_file']);
         $history_rows = $conn->query("SELECT previous_image_file, previous_pdf_file FROM announcement_edits WHERE announcement_id = $id");
         if ($history_rows) {
             foreach ($history_rows->fetch_all(MYSQLI_ASSOC) as $history_row) {
                 foreach ([$history_row['previous_image_file'], $history_row['previous_pdf_file']] as $historical_file) {
-                    if ($historical_file && file_exists($base_path . $historical_file)) unlink($base_path . $historical_file);
+                    if ($historical_file && storageExists($base_path . $historical_file)) storageDelete($base_path . $historical_file);
                 }
             }
         }
@@ -230,8 +229,8 @@ if ($action === 'create') {
         $r['image_url'] = $r['image_file'] ? $base . $r['image_file'] : null;
         $r['pdf_url']   = $r['pdf_file']   ? $base . $r['pdf_file']   : null;
         $photo_path = dirname(__DIR__) . '/uploads/avatars/' . ($r['author_photo'] ?? '');
-        $r['author_photo_url'] = !empty($r['author_photo']) && file_exists($photo_path)
-            ? BASE_URL . '/uploads/avatars/' . $r['author_photo'] . '?v=' . filemtime($photo_path)
+        $r['author_photo_url'] = !empty($r['author_photo']) && storageExists($photo_path)
+            ? BASE_URL . '/uploads/avatars/' . $r['author_photo'] . '?v=' . (storageModified($photo_path) ?: 0)
             : null;
     }
     echo json_encode($rows);
